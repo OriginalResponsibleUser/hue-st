@@ -3,7 +3,9 @@
  *
  *  Philips Hue Type "Extended Color Light"
  *
- *  Author: SmartThings
+ *  Author: jacobbraun
+ 
+ * Modified from SmartThings/Hue Bulb
  */
 
 // for the UI
@@ -79,6 +81,7 @@ metadata {
            tileAttribute ("device.level", key: "SECONDARY_CONTROL") {
             	attributeState "level", label: 'Level is ${currentValue}%'
             }
+        }
                 
 			/* Old Hue Functions
             tileAttribute ("device.level", key: "SLIDER_CONTROL") {
@@ -92,7 +95,6 @@ metadata {
 				attributeState "color", action:"setAdjustedColor"
 			}
             */
-		}
 
 
 		/*
@@ -142,6 +144,7 @@ metadata {
 		main(["switch"])
 		details(["switch", "levelSliderControl", "colorName", "colorTempSliderControl", "colorTemp", "colorMode", "refresh"])
 	
+}
 }
 
 // parse events into attributes
@@ -261,6 +264,58 @@ def off() {
     	sendEvent(name: "switchColor", value: "off", displayed: false)
 }
 
+def setColorTemperature(value) {
+    if(value<101){
+        value = (value*38) + 2700		//Calculation of mapping 0-100 to 2700-6500
+    }
+
+    def tempInMired = Math.round(1000000/value)
+    def finalHex = swapEndianHex(hexF(tempInMired, 4))
+   // def genericName = getGenericName(value)
+   // log.debug "generic name is : $genericName"
+
+    def cmds = []
+    
+    if (device.latestValue("switch") == "off") {
+        log.debug value
+    }
+    sendEvent(name: "colorTemperature", value: value, displayed:false)
+    sendEvent(name: "colorMode", value: "White")
+    sendEvent(name: "switchColor", value: "White", displayed: false)
+   // sendEvent(name: "colorName", value: genericName)
+}
+
+
+void setHue(percent) {
+    log.debug "Executing 'setHue'"
+    if (verifyPercent(percent)) {
+        parent.setHue(this, percent)
+        sendEvent(name: "hue", value: percent, displayed: false)
+    }
+}
+
+
+
+/*
+def setColorTemperature(value) {
+    if (value) {
+        log.trace "setColorTemperature: ${value}k"
+        if(value<101){
+        value = (value*38) + 2700		//Calculation of mapping 0-100 to 2700-6500
+    }
+    
+     def tempInMired = Math.round(1000000/value)
+    def finalHex = swapEndianHex(hexF(tempInMired, 4))
+    
+//        parent.setColorTemperature(this, value)
+        sendEvent(name: "colorTemperature", value: value)
+        sendEvent(name: "switch", value: "on")
+    } else {
+        log.warn "Invalid color temperature"
+    }
+}
+*/
+
 void nextLevel() {
 	def level = device.latestValue("level") as Integer ?: 0
 	if (level <= 100) {
@@ -286,14 +341,6 @@ void setSaturation(percent) {
     if (verifyPercent(percent)) {
         parent.setSaturation(this, percent)
         sendEvent(name: "saturation", value: percent, displayed: false)
-    }
-}
-
-void setHue(percent) {
-    log.debug "Executing 'setHue'"
-    if (verifyPercent(percent)) {
-        parent.setHue(this, percent)
-        sendEvent(name: "hue", value: percent, displayed: false)
     }
 }
 
@@ -354,24 +401,6 @@ void setAdjustedColor(value) {
         setColor(adjusted)
     } else {
         log.warn "Invalid color input"
-    }
-}
-
-def setColorTemperature(value) {
-    if (value) {
-        log.trace "setColorTemperature: ${value}k"
-        if(value<101){
-        value = (value*38) + 2700		//Calculation of mapping 0-100 to 2700-6500
-    }
-    
-     def tempInMired = Math.round(1000000/value)
-    def finalHex = swapEndianHex(hexF(tempInMired, 4))
-    
-//        parent.setColorTemperature(this, value)
-        sendEvent(name: "colorTemperature", value: value)
-        sendEvent(name: "switch", value: "on")
-    } else {
-        log.warn "Invalid color temperature"
     }
 }
 
