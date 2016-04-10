@@ -286,6 +286,7 @@ def setColorTemperature(value) {
 }
 
 
+/* 
 void setHue(percent) {
     log.debug "Executing 'setHue'"
     if (verifyPercent(percent)) {
@@ -293,9 +294,13 @@ void setHue(percent) {
         sendEvent(name: "hue", value: percent, displayed: false)
     }
 }
-
-
-
+*/
+void setHue(value) {
+	def max = 0xfe
+  // log.trace "setHue($value)"
+	sendEvent(name: "hue", value: value)
+	def scaledValue = Math.round(value * max / 100.0)
+}
 /*
 def setColorTemperature(value) {
     if (value) {
@@ -346,8 +351,16 @@ void setSaturation(percent) {
 
 void setColor(value) {
     log.debug "setColor: ${value}, $this"
+    def max = 0xfe
     def events = []
     def validValues = [:]
+    if (value.hue == 0 && value.saturation == 0) { setColorTemperature(3500) }
+        else if (value.red == 255 && value.blue == 185 && value.green == 255) { setColorTemperature(2700) }    
+        else {
+    if (value.hex) { sendEvent(name: "color", value: value.hex, displayed:false)}
+	def colorName = getColorName(value.hue)
+    }
+    
 
     if (verifyPercent(value.hue)) {
         events << createEvent(name: "hue", value: value.hue, displayed: false)
