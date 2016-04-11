@@ -120,6 +120,14 @@ def parse(String description) {
 }
 
 // handle commands
+
+def parseDescriptionAsMap(description) {
+    (description - "read attr - ").split(",").inject([:]) { map, param ->
+        def nameAndValue = param.split(":")
+        map += [(nameAndValue[0].trim()):nameAndValue[1].trim()]
+    }
+}
+
 void on() {
 	log.debug "on()"
 	log.trace parent.on(this)
@@ -146,12 +154,47 @@ void nextLevel() {
 }
 
 void setLevel(value) {
-    log.debug "Executing 'setLevel'"
-    if (verifyPercent(percent)) {
+    log.trace "Executing 'setLevel'"
+
+    def unreachable = device.currentValue("unreachable")
+    log.trace unreachable
+    
+    if(unreachable == null) { 
+        sendEvent(name: 'unreachable', value: 1, displayed: false)
+    }
+
+    else { 
+        sendEvent(name: 'unreachable', value: unreachable + 1, displayed: false)
+    }
+
+    if(unreachable > 2) { 
+        sendEvent(name: "switch", value: "off")
+        sendEvent(name: "switchColor", value: "off", displayed: false)
+    }
+
+    if (value == 0) {
+        sendEvent(name: "switch", value: "off")
+        sendEvent(name: "switchColor", value: "off", displayed: false)
+    }
+
+    else if (device.currentValue("switch") == "off" && unreachable < 2) {
+        sendEvent(name: "switch", value: "on")
+        log.trace device.currentValue("colorMode")
+        sendEvent(name: "switchColor", value: (device.currentValue("colorMode") == "White" ? "White" : device.currentValue("colorName")), displayed: false)
+    }
+
+  /*  if (verifyPercent(percent)) {
         parent.setLevel(this, percent)
         sendEvent(name: "level", value: percent, descriptionText: "Level has changed to ${percent}%")
         sendEvent(name: "switch", value: "on")
     }
+
+    */
+
+        sendEvent(name: "level", value: value)
+    def level = hex(value * 2.55)
+        if(value == 1) { level = hex(1) }
+
 }
 
 void setSaturation(percent) {
