@@ -100,7 +100,7 @@ metadata {
 }
 
 // parse events into attributes
-def parse(String description) {
+/*def parse(String description) {
  def descMap = parseDescriptionAsMap(description)
 	log.debug "parse() - $description"
 	def results = []
@@ -117,8 +117,84 @@ def parse(String description) {
 		results << createEvent(name: "${map?.name}", value: "${map?.value}")
 	}
 	results
-}
+}*/
 
+def parse(String description) {
+   log.info "description is $description"
+    
+    sendEvent(name: "unreachable", value: 0, displayed: false)
+    
+    if (description?.startsWith("catchall:")) {
+        if(description?.endsWith("0100") ||description?.endsWith("1001") || description?.matches("on/off\\s*:\\s*1"))
+        {
+            def result = createEvent(name: "switch", value: "on")
+            sendEvent(name: "switchColor", value: ( device.currentValue("colorMode") == "White" ? "White" : device.currentValue("colorName")), displayed: false)
+            log.debug "Parse returned ${result?.descriptionText}"
+            return result
+        }
+        else if(description?.endsWith("0000") || description?.endsWith("1000") || description?.matches("on/off\\s*:\\s*0"))
+        {
+            if(!(description?.startsWith("catchall: 0104 0300") || description?.startsWith("catchall: 0104 0008"))){
+                def result = createEvent(name: "switch", value: "off")
+                sendEvent(name: "switchColor", value: "off", displayed: false)
+                log.debug "Parse returned ${result?.descriptionText}"
+                return result
+            }
+        }
+    }
+    else if (description?.startsWith("read attr -")) {
+        def descMap = parseDescriptionAsMap(description)
+       // log.trace "descMap : $descMap"
+
+        if (descMap.cluster == "0300") {
+            if(descMap.attrId == "0000"){  //Hue Attribute
+                def hueValue = Math.round(convertHexToInt(descMap.value) / 255 * 100)
+                log.debug "Hue value returned is $hueValue"
+                def colorName = getColorName(hueValue)
+    			sendEvent(name: "colorName", value: colorName)
+                if (device.currentValue("switch") == "on") { sendEvent(name: "switchColor", value: ( device.currentValue("colorMode") == "White" ? "White" : device.currentValue("colorName")), displayed: false) }
+                sendEvent(name: "hue", value: hueValue, displayed:false)
+            }
+            else if(descMap.attrId == "0001"){ //Saturation Attribute
+                def saturationValue = Math.round(convertHexToInt(descMap.value) / 255 * 100)
+                log.debug "Saturation from refresh is $saturationValue"
+                sendEvent(name: "saturation", value: saturationValue, displayed:false)
+            }
+            else if( descMap.attrId == "0007") {
+                def tempInMired = convertHexToInt(descMap.value)
+            	def tempInKelvin = Math.round(1000000/tempInMired)
+                log.debug "Color temperature returned is $tempInKelvin"
+            	sendEvent(name: "colorTemperature", value: tempInKelvin)
+            }
+            else if( descMap.attrId == "0008") {
+            	def colorModeValue = (descMap.value == "02" ? "White" : "Color")
+                log.debug "Color mode returned $colorModeValue"
+                sendEvent(name: "colorMode", value: colorModeValue)
+                if (device.currentValue("switch") == "on") {
+                	sendEvent(name: "switchColor", value: (descMap.value == "02" ? "White" : device.currentValue("colorName")), displayed: false)
+                }
+            }
+        }
+        else if(descMap.cluster == "0008"){
+            def dimmerValue = Math.round(convertHexToInt(descMap.value) * 100 / 255)
+            log.debug "dimmer value is $dimmerValue"
+            sendEvent(name: "level", value: dimmerValue)
+        }
+    }
+    else {
+        def name = description?.startsWith("on/off: ") ? "switch" : null
+        if (name == "switch") {
+            def value = (description?.endsWith(" 1") ? "on" : "off")
+        	log.debug value
+            sendEvent(name: "switchColor", value: (value == "off" ? "off" : device.currentValue("colorName")), displayed: false)
+        }
+        else { def value = null }
+        def result = createEvent(name: name, value: value)
+        log.debug "Parse returned ${result?.descriptionText}"
+        return result
+    }
+
+}
 // handle commands
 
 def parseDescriptionAsMap(description) {
@@ -128,15 +204,15 @@ def parseDescriptionAsMap(description) {
     }
 }
 
-void on() {
+def on() {
 	log.debug "on()"
-	log.trace parent.on(this)
+//	log.trace parent.on(this)
     sendEvent(name: "switch", value: "on")
     sendEvent(name: "switchColor", value: ( device.currentValue("colorMode") == "White" ? "White" : device.currentValue("colorName")), displayed: false)
     }
 
-void off() {
-	log.trace parent.off(this)
+def off() {
+	//log.trace parent.off(this)
     log.debug "off()"
 	sendEvent(name: "switch", value: "off")
         sendEvent(name: "switchColor", value: "off", displayed: false)
@@ -191,30 +267,41 @@ void setLevel(value) {
 
     */
 
-        sendEvent(name: "level", value: value)
+    sendEvent(name: "level", value: value)
+    
     def level = hex(value * 2.55)
         if(value == 1) { level = hex(1) }
 
 }
 
-void setSaturation(percent) {
+void setSaturation(value) {
     log.debug "Executing 'setSaturation'"
-    if (verifyPercent(percent)) {
+   /* if (verifyPercent(percent)) {
         parent.setSaturation(this, percent)
         sendEvent(name: "saturation", value: percent, displayed: false)
-    }
+    }*/
+    def max = 0xfe
+   log.trace "setSaturation($value)"
+	sendEvent(name: "saturation", value: value)
+	def scaledValue = Math.round(value * max / 100.0)
 }
 
-void setHue(percent) {
+void setHue(value) {
+/*
     log.debug "Executing 'setHue'"
     if (verifyPercent(percent)) {
         parent.setHue(this, percent)
         sendEvent(name: "hue", value: percent, displayed: false)
     }
+*/
+def max = 0xfe
+   log.trace "setHue($value)"
+	sendEvent(name: "hue", value: value)
+	def scaledValue = Math.round(value * max / 100.0)
 }
 
 void setColor(value) {
-    log.debug "setColor: ${value}, $this"
+    log.debug "executing setColor setColor: ${value}, $this"
     def events = []
     def validValues = [:]
 
@@ -276,7 +363,7 @@ void reset() {
 }
 
 void setAdjustedColor(value) {
-    if (value) {
+    /*if (value) {
         log.trace "setAdjustedColor: ${value}"
         def adjusted = value + [:]
         adjusted.hue = adjustOutgoingHue(value.hue)
@@ -285,7 +372,11 @@ void setAdjustedColor(value) {
         setColor(adjusted)
     } else {
         log.warn "Invalid color input"
-    }
+    }*/
+    
+    def adjusted = value + [:]
+	adjusted.level = null // needed because color picker always sends 100
+	setColor(adjusted)
 }
 
 void setColorTemperature(value) {
@@ -301,6 +392,19 @@ void setColorTemperature(value) {
 
 void refresh() {
     log.debug "Executing 'refresh'"
+    
+    def unreachable = device.currentValue("unreachable")
+    if(unreachable == null) { 
+    	sendEvent(name: 'unreachable', value: 1, displayed: false)
+    }
+    else { 
+    	sendEvent(name: 'unreachable', value: unreachable + 1, displayed: false)
+    }
+    if(unreachable > 2) { 
+    	sendEvent(name: "switch", value: "off")
+        sendEvent(name: "switchColor", value: "off", displayed: false)
+    }
+    
     parent.manualRefresh()
 }
 
@@ -429,4 +533,45 @@ private getColorName(hueValue){
     }
 
     colorName
+}
+
+private hex(value, width=2) {
+	def s = new BigInteger(Math.round(value).toString()).toString(16)
+	while (s.size() < width) {
+		s = "0" + s
+	}
+	s
+}
+
+private evenHex(value){
+    def s = new BigInteger(Math.round(value).toString()).toString(16)
+    while (s.size() % 2 != 0) {
+        s = "0" + s
+    }
+    s
+}
+
+//Need to reverse array of size 2
+private byte[] reverseArray(byte[] array) {
+    byte tmp;
+    tmp = array[1];
+    array[1] = array[0];
+    array[0] = tmp;
+    return array
+}
+
+private hexF(value, width) {
+	def s = new BigInteger(Math.round(value).toString()).toString(16)
+	while (s.size() < width) {
+		s = "0" + s
+	}
+	s
+}
+
+private String swapEndianHex(String hex) {
+    reverseArray(hex.decodeHex()).encodeHex()
+}
+
+private Integer convertHexToInt(hex) {
+	Integer.parseInt(hex,16)
 }
