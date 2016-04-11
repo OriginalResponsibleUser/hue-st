@@ -21,6 +21,8 @@ metadata {
 		command "setAdjustedColor"
         command "reset"
         command "refresh"
+        
+        attribute "colorName", "string"
 	}
 
 	simulator {
@@ -87,18 +89,25 @@ metadata {
 		standardTile("refresh", "device.refresh", height: 2, width: 2, inactiveLabel: false, decoration: "flat") {
 			state "default", label:"", action:"refresh.refresh", icon:"st.secondary.refresh"
 		}
+        
+        valueTile("colorName", "device.colorName", height: 1, width: 2, inactiveLabel: false, decoration: "flat") {
+            state "colorName", label: '${currentValue}'
+        }
 
 		main(["rich-control"])
-		details(["rich-control", "colorTempSliderControl", "colorTemp", "reset", "refresh"])
+		details(["rich-control", "colorTempSliderControl", "colorTemp", "reset", "refresh", "colorName"])
 	}
 }
 
 // parse events into attributes
-def parse(description) {
+def parse(String description) {
+ def descMap = parseDescriptionAsMap(description)
 	log.debug "parse() - $description"
 	def results = []
 
 	def map = description
+    def hueValue = Math.round(convertHexToInt(descMap.value) / 255 * 100)
+    log.debug "hue value is hueValue"
 	if (description instanceof String)  {
 		log.debug "Hue Bulb stringToMap - ${map}"
 		map = stringToMap(description)
@@ -112,13 +121,17 @@ def parse(description) {
 
 // handle commands
 void on() {
+	log.debug "on()"
 	log.trace parent.on(this)
-	sendEvent(name: "switch", value: "on")
-}
+    sendEvent(name: "switch", value: "on")
+    sendEvent(name: "switchColor", value: ( device.currentValue("colorMode") == "White" ? "White" : device.currentValue("colorName")), displayed: false)
+    }
 
 void off() {
 	log.trace parent.off(this)
+    log.debug "off()"
 	sendEvent(name: "switch", value: "off")
+        sendEvent(name: "switchColor", value: "off", displayed: false)
 }
 
 void nextLevel() {
@@ -132,7 +145,7 @@ void nextLevel() {
 	setLevel(level)
 }
 
-void setLevel(percent) {
+void setLevel(value) {
     log.debug "Executing 'setLevel'"
     if (verifyPercent(percent)) {
         parent.setLevel(this, percent)
@@ -161,6 +174,21 @@ void setColor(value) {
     log.debug "setColor: ${value}, $this"
     def events = []
     def validValues = [:]
+
+    if (value.hex) { sendEvent(name: "color", value: value.hex, displayed:false)}
+
+    def colorName = getColorName(value.hue)
+    sendEvent(name: "colorName", value: colorName)
+    sendEvent(name: "colorMode", value: "Color")
+    sendEvent(name: "switchColor", value: device.currentValue("colorName"), displayed: false)
+	
+    log.debug "color name is : $colorName"
+    
+    sendEvent(name: "hue", value: value.hue, displayed:false)
+    sendEvent(name: "saturation", value: value.saturation, displayed:false)
+
+
+
 
     if (verifyPercent(value.hue)) {
         events << createEvent(name: "hue", value: value.hue, displayed: false)
@@ -259,4 +287,103 @@ def verifyPercent(percent) {
         log.warn "$percent is not 0-100"
         return false
     }
+}
+
+
+//input Hue Integer values; returns color name for saturation 100%
+private getColorName(hueValue){
+    if(hueValue>360 || hueValue<0)
+        return
+
+    hueValue = Math.round(hueValue / 100 * 360)
+
+    log.debug "hue value is $hueValue"
+
+    def colorName = "Color Mode"
+    if(hueValue>=0 && hueValue <= 4){
+        colorName = "Red"
+    }
+    else if (hueValue>=5 && hueValue <=21 ){
+        colorName = "Brick Red"
+    }
+    else if (hueValue>=22 && hueValue <=30 ){
+        colorName = "Safety Orange"
+    }
+    else if (hueValue>=31 && hueValue <=40 ){
+        colorName = "Dark Orange"
+    }
+    else if (hueValue>=41 && hueValue <=49 ){
+        colorName = "Amber"
+    }
+    else if (hueValue>=50 && hueValue <=56 ){
+        colorName = "Gold"
+    }
+    else if (hueValue>=57 && hueValue <=65 ){
+        colorName = "Yellow"
+    }
+    else if (hueValue>=66 && hueValue <=83 ){
+        colorName = "Electric Lime"
+    }
+    else if (hueValue>=84 && hueValue <=93 ){
+        colorName = "Lawn Green"
+    }
+    else if (hueValue>=94 && hueValue <=112 ){
+        colorName = "Bright Green"
+    }
+    else if (hueValue>=113 && hueValue <=135 ){
+        colorName = "Lime"
+    }
+    else if (hueValue>=136 && hueValue <=166 ){
+        colorName = "Spring Green"
+    }
+    else if (hueValue>=167 && hueValue <=171 ){
+        colorName = "Turquoise"
+    }
+    else if (hueValue>=172 && hueValue <=187 ){
+        colorName = "Aqua"
+    }
+    else if (hueValue>=188 && hueValue <=203 ){
+        colorName = "Sky Blue"
+    }
+    else if (hueValue>=204 && hueValue <=217 ){
+        colorName = "Dodger Blue"
+    }
+    else if (hueValue>=218 && hueValue <=223 ){
+        colorName = "Navy Blue"
+    }
+    else if (hueValue>=224 && hueValue <=251 ){
+        colorName = "Blue"
+    }
+    else if (hueValue>=252 && hueValue <=256 ){
+        colorName = "Han Purple"
+    }
+    else if (hueValue>=257 && hueValue <=274 ){
+        colorName = "Electric Indigo"
+    }
+    else if (hueValue>=275 && hueValue <=289 ){
+        colorName = "Electric Purple"
+    }
+    else if (hueValue>=290 && hueValue <=300 ){
+        colorName = "Orchid Purple"
+    }
+    else if (hueValue>=301 && hueValue <=315 ){
+        colorName = "Magenta"
+    }
+    else if (hueValue>=316 && hueValue <=326 ){
+        colorName = "Hot Pink"
+    }
+    else if (hueValue>=327 && hueValue <=335 ){
+        colorName = "Deep Pink"
+    }
+    else if (hueValue>=336 && hueValue <=339 ){
+        colorName = "Raspberry"
+    }
+    else if (hueValue>=340 && hueValue <=352 ){
+        colorName = "Crimson"
+    }
+    else if (hueValue>=353 && hueValue <=360 ){
+        colorName = "Red"
+    }
+
+    colorName
 }
